@@ -36,7 +36,7 @@
   .road .done{position:absolute; left:0; top:44px; height:6px; border-radius:3px; background:var(--paid); transition:width .9s ease;}
   .stop{position:absolute; top:39px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:var(--card); border:3px solid var(--road);}
   .stop.paid{background:var(--paid); border-color:var(--paid);}
-  .stop.next{border-color:var(--soon);} .stop.next.late{border-color:var(--late);}
+  .stop.nextstop{border-color:var(--soon);} .stop.nextstop.late{border-color:var(--late);}
   .stop span{position:absolute; top:22px; left:50%; transform:translateX(-50%); font-size:.78rem; color:var(--soft); white-space:nowrap;}
   .stop.paid span{color:var(--ink); font-weight:600;}
   .scooter{position:absolute; top:0; width:44px; margin-left:-22px; transition:left .9s ease;}
@@ -67,8 +67,34 @@
   li.paid .pill{background:var(--paid-soft); color:var(--paid);} li.soon .pill{background:var(--soon-soft); color:var(--soon);} li.late .pill{background:var(--late-soft); color:var(--late);}
 
   footer{margin-top:30px; color:var(--soft); font-size:.86rem;}
-  footer .edit{display:inline-block; margin-top:14px; color:var(--soft); font-size:.8rem; text-decoration:underline; text-underline-offset:3px;}
-  footer .edit:focus-visible{outline:2px solid var(--paid); outline-offset:3px; border-radius:4px;}
+  .foot{margin-top:14px;}
+  .linkish{background:none; border:none; padding:0; font:inherit; font-size:.82rem; color:var(--soft); text-decoration:underline; text-underline-offset:3px; cursor:pointer;}
+  .banner{display:flex; justify-content:space-between; align-items:center; background:var(--paid-soft); color:var(--paid); font-weight:700; border-radius:14px; padding:10px 14px; margin-top:22px;}
+  .banner .linkish{color:var(--paid); font-size:.9rem;}
+  .btn{font:700 .85rem var(--body); border-radius:10px; padding:9px 14px; border:1.5px solid var(--paid); background:transparent; color:var(--paid); cursor:pointer;}
+  .btn.small{padding:6px 12px; font-size:.8rem;}
+  .btn.primary{background:var(--paid); color:var(--card); flex:1;}
+  .btn.ghost{border-color:var(--road); color:var(--soft);}
+  .btn:disabled{opacity:.55; cursor:default;}
+  .btn:focus-visible, .linkish:focus-visible, input:focus-visible{outline:2px solid var(--paid); outline-offset:2px;}
+  li .eacts{grid-column:1 / -1; display:flex; gap:8px; margin-top:6px;}
+  .payform{grid-column:1 / -1; background:var(--card); border-radius:14px; padding:12px; margin-top:8px;}
+  .payform label, .panel label{display:block; font-size:.8rem; color:var(--soft); margin-top:8px;}
+  .payform input, .panel input{display:block; width:100%; margin-top:4px; font:600 1rem var(--body); color:var(--ink); background:var(--bg); border:1.5px solid var(--road); border-radius:10px; padding:9px 10px;}
+  .payform .two{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .payform .two label{margin-top:0;}
+  .acts{display:flex; gap:8px; margin-top:12px;}
+  .sheet{position:fixed; inset:0; background:rgba(10,20,24,.55); display:flex; align-items:flex-end; justify-content:center; z-index:10; padding:12px;}
+  .sheet[hidden]{display:none;}
+  .panel{background:var(--card); color:var(--ink); border-radius:18px; padding:18px; width:100%; max-width:480px; max-height:90vh; overflow:auto; margin-bottom:env(safe-area-inset-bottom,0px);}
+  .panel h3{font:600 1.25rem var(--round); margin:0 0 6px;}
+  .panel p{color:var(--soft); margin:0; font-size:.92rem;}
+  .panel details{margin-top:14px; font-size:.88rem;} .panel summary{color:var(--paid); font-weight:700; cursor:pointer;}
+  .how{padding-left:18px; color:var(--soft); line-height:1.55;} .how li{display:list-item; border:none; padding:3px 0;}
+  .kerr{color:var(--late) !important; font-weight:700; margin-top:8px !important;}
+  .toast{position:fixed; left:50%; bottom:calc(18px + env(safe-area-inset-bottom,0px)); transform:translate(-50%, 20px); background:var(--ink); color:var(--bg); font-weight:700; font-size:.9rem;
+    padding:10px 16px; border-radius:12px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; max-width:calc(100% - 32px); text-align:center; z-index:20;}
+  .toast.show{opacity:1; transform:translate(-50%, 0);}
   .err{background:var(--late-soft); color:var(--late); border-radius:14px; padding:14px 16px; font-weight:600; margin-top:24px;}
 </style>
 </head>
@@ -80,73 +106,177 @@
 </main>
 
 <script src="payments.js"></script>
+<div id="sheet" class="sheet" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 <script>
 (function(){
-  const app = document.getElementById('app');
+  // ---------- where the payments live ----------
+  const OWNER = 'Gunshi94', REPO = 'dudu-bubu', FILE = 'payments.js', API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`;
+  const KEY_STORE = 'dudububu:key';
+  const app = document.getElementById('app'), sheet = document.getElementById('sheet'), toastEl = document.getElementById('toast');
   const peso = n => '₱' + Number(n).toLocaleString('en-PH', {minimumFractionDigits:0, maximumFractionDigits:2});
   const parse = s => { const [y,m,d] = String(s).split('-').map(Number); return new Date(y, m-1, d); };
   const ok = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s||''));
   const long = s => parse(s).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
   const short = s => parse(s).toLocaleDateString('en-US', {month:'short', day:'numeric'});
   const mon = s => parse(s).toLocaleDateString('en-US', {month:'short'});
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   // today in the viewer's own time zone (add ?on=YYYY-MM-DD to the link to preview another day)
   const q = new URLSearchParams(location.search).get('on');
   const now = new Date(), today = ok(q) ? q : `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   const days = (a, b) => Math.round((parse(b) - parse(a)) / 86400000);
+  let list = null, editing = false, openIdx = -1, busy = false;
+  const key = () => { try { return localStorage.getItem(KEY_STORE) || ''; } catch(e){ return ''; } };
 
-  const list = Array.isArray(window.PAYMENTS) ? window.PAYMENTS : null;
-  if(!list || !list.length || list.some(p => !ok(p.due) || !(Number(p.amount) > 0) || (p.paidOn && !ok(p.paidOn)))){
-    app.innerHTML = `<div class="err">The payment list couldn't be read. Open payments.js on GitHub and check that every date looks like "2026-12-24", every amount is a number, and no quotes or commas are missing.</div>`;
-    return;
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(()=>toastEl.classList.remove('show'), 3200); }
+
+  // ---------- reading: always the newest copy, never an old cached one ----------
+  function readFile(text){ const w = {}; new Function('window', text)(w); return w.PAYMENTS; }
+  async function loadPublic(){
+    try { const r = await fetch(`${FILE}?v=${Date.now()}`, {cache:'no-store'}); if(!r.ok) throw 0; return readFile(await r.text()); }
+    catch(e){ return Array.isArray(window.PAYMENTS) ? window.PAYMENTS : null; }
+  }
+  const b64 = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+  const unb64 = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g,'')), c => c.charCodeAt(0)));
+  async function gh(method, body){
+    const r = await fetch(API + (method==='GET' ? `?ref=main&t=${Date.now()}` : ''), {method, cache:'no-store',
+      headers:{'Authorization':'Bearer '+key(), 'Accept':'application/vnd.github+json', ...(body?{'Content-Type':'application/json'}:{})}, body: body ? JSON.stringify(body) : undefined});
+    if(r.status === 401) throw new Error("GitHub didn't accept the key. Check that you copied all of it, or make a new one.");
+    if(r.status === 403 || r.status === 404) throw new Error("The key can't change this tracker. When making it, choose only the dudu-bubu repository and set Contents to Read and write.");
+    if(r.status === 409 || r.status === 422) throw new Error('Someone changed the payments at the same time. Tap Save again.');
+    if(!r.ok) throw new Error(`GitHub had a problem (${r.status}). Try again in a minute.`);
+    return r.json();
+  }
+  function fileText(arr){
+    return `// Dudu & Bubu: Bubu's Yadea Ova payments to Dudu.
+//
+// The tracker updates this file when Dudu uses "Dudu: edit" at the bottom of the page.
+// You can still edit it by hand: put the date Bubu paid between the quotes after paidOn, like  paidOn: "2026-12-20"
+// and if only part was paid, change paidAmount to what was paid. Leave paidOn as "" until it's paid.
+
+window.PAYMENTS = [
+${arr.map(p => `  { due: ${JSON.stringify(p.due)}, amount: ${Number(p.amount)}, paidOn: ${JSON.stringify(p.paidOn||'')}, paidAmount: ${Number(p.paidAmount)||0}, note: ${JSON.stringify(p.note||'')} },`).join('\n')}
+];
+`;
+  }
+  // save one month: read the latest from GitHub first, change just that month, write it back
+  async function saveMonth(i, change, message){
+    busy = true; render();
+    try {
+      const cur = await gh('GET'); const fresh = readFile(unb64(cur.content));
+      if(!Array.isArray(fresh) || !fresh[i] || fresh[i].due !== list[i].due) throw new Error('The payment list changed. Close edit mode and open it again.');
+      fresh[i] = {...fresh[i], ...change};
+      await gh('PUT', {message, content: b64(fileText(fresh)), sha: cur.sha, branch:'main'});
+      list = fresh; openIdx = -1; toast('Saved. Bubu will see it in a minute or two.');
+    } catch(e){ toast(e.message || 'Saving failed. Check your internet and try again.'); }
+    busy = false; render();
   }
 
-  const rows = list.map(p => {
-    const amount = Number(p.amount), paid = p.paidOn ? (Number(p.paidAmount) > 0 ? Math.min(Number(p.paidAmount), amount) : amount) : 0;
-    const full = paid >= amount, left = Math.round((amount - paid) * 100) / 100, d = days(today, p.due);
-    let cls, text;
-    if(full){ cls = 'paid'; text = `<b>Paid</b> on ${short(p.paidOn)}`; }
-    else if(paid > 0){ cls = d < 0 ? 'late' : 'soon'; text = `<b>${peso(paid)} paid</b>, ${peso(left)} still to go`; }
-    else if(d < 0){ cls = 'late'; text = `<b>Overdue</b> by ${-d} day${-d === 1 ? '' : 's'}`; }
-    else if(d === 0){ cls = 'soon'; text = `<b>Due today</b>`; }
-    else if(d <= 7){ cls = 'soon'; text = `<b>Due in ${d} day${d === 1 ? '' : 's'}</b>`; }
-    else { cls = 'later'; text = `Not due yet`; }
-    return {...p, amount, paid, full, left, d, cls, text};
+  // ---------- the page ----------
+  function render(){
+    if(!Array.isArray(list) || !list.length || list.some(p => !ok(p.due) || !(Number(p.amount) > 0) || (p.paidOn && !ok(p.paidOn)))){
+      app.innerHTML = `<div class="err">The payment list couldn't be read. Open payments.js on GitHub and check that every date looks like "2026-12-24", every amount is a number, and no quotes or commas are missing.</div>`;
+      return;
+    }
+    const rows = list.map(p => {
+      const amount = Number(p.amount), paid = p.paidOn ? (Number(p.paidAmount) > 0 ? Math.min(Number(p.paidAmount), amount) : amount) : 0;
+      const full = paid >= amount, left = Math.round((amount - paid) * 100) / 100, d = days(today, p.due);
+      let cls, text;
+      if(full){ cls = 'paid'; text = `<b>Paid</b> on ${short(p.paidOn)}`; }
+      else if(paid > 0){ cls = d < 0 ? 'late' : 'soon'; text = `<b>${peso(paid)} paid</b>, ${peso(left)} still to go`; }
+      else if(d < 0){ cls = 'late'; text = `<b>Overdue</b> by ${-d} day${-d === 1 ? '' : 's'}`; }
+      else if(d === 0){ cls = 'soon'; text = `<b>Due today</b>`; }
+      else if(d <= 7){ cls = 'soon'; text = `<b>Due in ${d} day${d === 1 ? '' : 's'}</b>`; }
+      else { cls = 'later'; text = `Not due yet`; }
+      return {...p, amount, paid, full, left, d, cls, text};
+    });
+    const total = rows.reduce((t, r) => t + r.amount, 0), paidTotal = rows.reduce((t, r) => t + r.paid, 0);
+    const doneCount = rows.filter(r => r.full).length, next = rows.find(r => !r.full);
+    const n = rows.length, pos = i => (i / (n - 1)) * 100, reached = doneCount === 0 ? 0 : pos(doneCount - 1);
+    const scooter = `<svg class="scooter" viewBox="0 0 64 44" aria-hidden="true" style="left:${reached}%">
+        <circle cx="12" cy="34" r="8" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="52" cy="34" r="8" fill="none" stroke="currentColor" stroke-width="4"/>
+        <path d="M12 34 L22 34 Q26 22 38 22 L46 22 L52 34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+        <path d="M46 22 L42 8 L50 6" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="20" y="16" width="16" height="6" rx="3" fill="var(--paid)"/></svg>`;
+    const road = `<div class="road" role="img" aria-label="${doneCount} of ${n} payments made">
+        <div class="line"></div><div class="done" style="width:${reached}%"></div>
+        ${rows.map((r, i) => `<div class="stop ${r.full ? 'paid' : ''} ${next === r ? 'nextstop ' + (r.cls === 'late' ? 'late' : '') : ''}" style="left:${pos(i)}%"><span>${mon(r.due)}</span></div>`).join('')}
+        ${scooter}${doneCount === n ? '' : '<div class="flag" aria-hidden="true">🏁</div>'}</div>`;
+    const nextBox = next
+      ? `<div class="nextbox"><p class="when">Next: ${peso(next.left)} on ${long(next.due)}</p>
+           <p class="status ${next.cls === 'later' ? 'later' : next.cls}">${next.d < 0 ? `Overdue by ${-next.d} day${-next.d === 1 ? '' : 's'}` : next.d === 0 ? 'Due today' : `In ${next.d} day${next.d === 1 ? '' : 's'}`}${next.paid > 0 ? `, ${peso(next.paid)} already paid` : ''}</p></div>`
+      : `<div class="nextbox"><p class="when">All paid off 🎉</p><p class="status ok">Bubu finished paying for the Yadea Ova on ${long(rows[n-1].paidOn || today)}.</p></div>`;
+    const tally = `<div class="tally">
+        <div><b>${peso(paidTotal)}</b><small>paid of ${peso(total)}</small></div>
+        <div><b>${n - doneCount}</b><small>payment${n - doneCount === 1 ? '' : 's'} to go</small></div>
+        <div><b>${peso(Math.max(0, total - paidTotal))}</b><small>left</small></div></div>`;
+    const editBits = (r, i) => {
+      if(!editing) return '';
+      if(openIdx === i) return `<form class="payform" data-i="${i}">
+          <div class="two"><label>Paid on<input type="date" name="on" value="${esc(r.paidOn || today)}" required></label>
+            <label>Amount (₱)<input type="number" name="amt" inputmode="decimal" step="0.01" min="0.01" value="${r.paid > 0 && !r.full ? r.paid : r.amount}" required></label></div>
+          <label>Note (optional)<input type="text" name="note" value="${esc(r.note || '')}" placeholder="e.g. Sent via GCash" autocomplete="off"></label>
+          <div class="acts"><button class="btn primary" type="submit" ${busy?'disabled':''}>${busy ? 'Saving…' : 'Save'}</button><button class="btn ghost" type="button" data-cancel ${busy?'disabled':''}>Cancel</button></div></form>`;
+      return `<span class="eacts">${r.paidOn ? `<button class="btn ghost small" data-open="${i}" ${busy?'disabled':''}>Change</button><button class="btn ghost small" data-undo="${i}" ${busy?'disabled':''}>Undo</button>`
+        : `<button class="btn small" data-open="${i}" ${busy?'disabled':''}>Mark paid</button>`}</span>`;
+    };
+    const items = `<h2>The six payments</h2><ol>${rows.map((r, i) => `<li class="${r.cls}">
+        <span class="m">${long(r.due)}${r.full ? '' : r.cls === 'late' ? '<span class="pill">Overdue</span>' : r.cls === 'soon' ? '<span class="pill">Soon</span>' : ''}</span>
+        <span class="amt">${peso(r.amount)}</span><span class="st">${r.text}</span>
+        ${r.note ? `<span class="note">${esc(r.note)}</span>` : ''}${editBits(r, i)}</li>`).join('')}</ol>`;
+    const banner = editing ? `<div class="banner"><span>✏️ Editing as Dudu</span><button class="linkish" data-done>Done</button></div>` : '';
+    app.innerHTML = banner + road + `<section class="upnext">${nextBox}${tally}</section>` + items
+      + `<footer>Bought on November 24, 2026. Due every 24th, last payment ${long(rows[n-1].due)}.
+         <div class="foot">${editing ? `<button class="linkish" data-forget>Forget the key on this device</button>` : `<button class="linkish" data-edit>Dudu: edit</button>`}</div></footer>`;
+    if(openIdx >= 0){ const f = app.querySelector('.payform input[name="on"]'); if(f && !busy) f.focus({preventScroll:true}); }
+  }
+
+  // ---------- the one-time key ----------
+  function askKey(){
+    sheet.innerHTML = `<div class="panel" role="dialog" aria-modal="true" aria-labelledby="kt"><h3 id="kt">Edit as Dudu</h3>
+      <p>Paste your GitHub key for this tracker. It's saved on this device only, so you won't be asked again here.</p>
+      <label>GitHub key<input type="password" id="keyIn" placeholder="github_pat_…" autocomplete="off"></label>
+      <p class="kerr" id="kerr" hidden></p>
+      <div class="acts"><button class="btn primary" id="keySave">Save key</button><button class="btn ghost" id="keyCancel">Cancel</button></div>
+      <details><summary>How to make your key</summary><ol class="how">
+        <li>On GitHub, tap your photo → <b>Settings</b> → <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+        <li>Name it <b>Dudu Bubu tracker</b>. For expiration, choose the longest offered (at least until June 2027).</li>
+        <li>Repository access: <b>Only select repositories</b> → <b>dudu-bubu</b>.</li>
+        <li>Permissions → Repository permissions → <b>Contents</b>: <b>Read and write</b>. Leave everything else as is.</li>
+        <li><b>Generate token</b>, copy it, and paste it here.</li></ol></details></div>`;
+    sheet.hidden = false; const inp = document.getElementById('keyIn'); inp.focus();
+    const close = () => { sheet.hidden = true; sheet.innerHTML = ''; };
+    document.getElementById('keyCancel').onclick = close;
+    document.getElementById('keySave').onclick = async () => {
+      const k = inp.value.trim(), er = document.getElementById('kerr');
+      if(k.length < 20){ er.textContent = 'That looks too short. Copy the whole key from GitHub.'; er.hidden = false; return; }
+      const old = key(); try { localStorage.setItem(KEY_STORE, k); } catch(e){}
+      try { await gh('GET'); close(); editing = true; render(); toast('Key saved. Tap Mark paid on any month.'); }
+      catch(e){ try { old ? localStorage.setItem(KEY_STORE, old) : localStorage.removeItem(KEY_STORE); } catch(_){} er.textContent = e.message; er.hidden = false; }
+    };
+    inp.onkeydown = e => { if(e.key==='Enter') document.getElementById('keySave').click(); };
+  }
+
+  // ---------- taps ----------
+  app.addEventListener('click', e => {
+    const t = e.target.closest('button'); if(!t || busy) return;
+    if(t.hasAttribute('data-edit')){ if(key()){ editing = true; render(); } else askKey(); }
+    else if(t.hasAttribute('data-done')){ editing = false; openIdx = -1; render(); }
+    else if(t.hasAttribute('data-forget')){ try { localStorage.removeItem(KEY_STORE); } catch(_){} editing = false; openIdx = -1; render(); toast('Key removed from this device.'); }
+    else if(t.dataset.open !== undefined){ openIdx = Number(t.dataset.open); render(); }
+    else if(t.hasAttribute('data-cancel')){ openIdx = -1; render(); }
+    else if(t.dataset.undo !== undefined){ const i = Number(t.dataset.undo);
+      saveMonth(i, {paidOn:'', paidAmount:0}, `Undo payment for ${list[i].due}`); }
+  });
+  app.addEventListener('submit', e => {
+    const f = e.target.closest('.payform'); if(!f) return; e.preventDefault(); if(busy) return;
+    const i = Number(f.dataset.i), on = f.on.value, amt = Math.round(Number(f.amt.value) * 100) / 100, amount = Number(list[i].amount);
+    if(!ok(on)){ toast('Pick the date Bubu paid.'); return; }
+    if(!(amt > 0)){ toast('Enter the amount Bubu paid.'); return; }
+    saveMonth(i, {paidOn:on, paidAmount: amt >= amount ? 0 : amt, note: f.note.value.trim()}, `Bubu paid ${peso(amt)} for ${list[i].due}`);
   });
 
-  const total = rows.reduce((t, r) => t + r.amount, 0), paidTotal = rows.reduce((t, r) => t + r.paid, 0);
-  const doneCount = rows.filter(r => r.full).length, next = rows.find(r => !r.full);
-
-  // the road
-  const n = rows.length, pos = i => (i / (n - 1)) * 100;
-  const reached = doneCount === 0 ? 0 : pos(doneCount - 1);
-  const scooter = `<svg class="scooter" viewBox="0 0 64 44" aria-hidden="true" style="left:calc(${doneCount === 0 ? 0 : reached}% - 0px)">
-      <circle cx="12" cy="34" r="8" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="52" cy="34" r="8" fill="none" stroke="currentColor" stroke-width="4"/>
-      <path d="M12 34 L22 34 Q26 22 38 22 L46 22 L52 34" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-      <path d="M46 22 L42 8 L50 6" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-      <rect x="20" y="16" width="16" height="6" rx="3" fill="var(--paid)"/></svg>`;
-  const road = `<div class="road" role="img" aria-label="${doneCount} of ${n} payments made">
-      <div class="line"></div><div class="done" style="width:${reached}%"></div>
-      ${rows.map((r, i) => `<div class="stop ${r.full ? 'paid' : ''} ${next === r ? 'next ' + (r.cls === 'late' ? 'late' : '') : ''}" style="left:${pos(i)}%"><span>${mon(r.due)}</span></div>`).join('')}
-      ${scooter}${doneCount === n ? '' : '<div class="flag" aria-hidden="true">🏁</div>'}</div>`;
-
-  // what's next
-  const nextBox = next
-    ? `<div class="nextbox"><p class="when">Next: ${peso(next.left)} on ${long(next.due)}</p>
-         <p class="status ${next.cls === 'later' ? 'later' : next.cls}">${next.d < 0 ? `Overdue by ${-next.d} day${-next.d === 1 ? '' : 's'}` : next.d === 0 ? 'Due today' : `In ${next.d} day${next.d === 1 ? '' : 's'}`}${next.paid > 0 ? `, ${peso(next.paid)} already paid` : ''}</p></div>`
-    : `<div class="nextbox"><p class="when">All paid off 🎉</p><p class="status ok">Bubu finished paying for the Yadea Ova on ${long(rows[n-1].paidOn || today)}.</p></div>`;
-  const tally = `<div class="tally">
-      <div><b>${peso(paidTotal)}</b><small>paid of ${peso(total)}</small></div>
-      <div><b>${n - doneCount}</b><small>payment${n - doneCount === 1 ? '' : 's'} to go</small></div>
-      <div><b>${peso(Math.max(0, total - paidTotal))}</b><small>left</small></div></div>`;
-
-  const items = `<h2>The six payments</h2><ol>${rows.map(r => `<li class="${r.cls}">
-      <span class="m">${long(r.due)}${r.full ? '' : r.cls === 'late' ? '<span class="pill">Overdue</span>' : r.cls === 'soon' ? '<span class="pill">Soon</span>' : ''}</span>
-      <span class="amt">${peso(r.amount)}</span><span class="st">${r.text}</span>
-      ${r.note ? `<span class="note">${String(r.note).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span>` : ''}</li>`).join('')}</ol>`;
-
-  app.innerHTML = road + `<section class="upnext">${nextBox}${tally}</section>` + items
-    + `<footer>Bought on November 24, 2026. Due every 24th, last payment ${long(rows[n-1].due)}.
-       <a class="edit" href="https://github.com/Gunshi94/dudu-bubu/edit/main/payments.js" target="_blank" rel="noopener">Dudu: update payments</a></footer>`;
+  loadPublic().then(l => { list = l; render(); });
 })();
 </script>
 </body>
