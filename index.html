@@ -67,6 +67,8 @@
   li.paid .pill{background:var(--paid-soft); color:var(--paid);} li.soon .pill{background:var(--soon-soft); color:var(--soon);} li.late .pill{background:var(--late-soft); color:var(--late);}
 
   footer{margin-top:30px; color:var(--soft); font-size:.86rem;}
+  footer .edit{display:inline-block; margin-top:14px; color:var(--soft); font-size:.8rem; text-decoration:underline; text-underline-offset:3px;}
+  footer .edit:focus-visible{outline:2px solid var(--paid); outline-offset:3px; border-radius:4px;}
   .err{background:var(--late-soft); color:var(--late); border-radius:14px; padding:14px 16px; font-weight:600; margin-top:24px;}
 </style>
 </head>
@@ -143,7 +145,8 @@
       ${r.note ? `<span class="note">${String(r.note).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}</span>` : ''}</li>`).join('')}</ol>`;
 
   app.innerHTML = road + `<section class="upnext">${nextBox}${tally}</section>` + items
-    + `<footer>Bought on November 24, 2026. Due every 24th, last payment ${long(rows[n-1].due)}.</footer>`;
+    + `<footer>Bought on November 24, 2026. Due every 24th, last payment ${long(rows[n-1].due)}.
+       <a class="edit" href="https://github.com/Gunshi94/dudu-bubu/edit/main/payments.js" target="_blank" rel="noopener">Dudu: update payments</a></footer>`;
 })();
 </script>
 </body>
